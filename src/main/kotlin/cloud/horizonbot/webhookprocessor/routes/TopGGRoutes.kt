@@ -93,6 +93,7 @@ fun Routing.topGGRoutes(httpClient: HttpClient) {
                             putJsonArray("embeds") {
                                 add(
                                     buildJsonObject {
+                                        put("title", "New Vote")
                                         put("description", "<@$discordUserId> ${data.user.name} `$discordUserId`")
                                         put("color", 0x00A0FF)
                                         putJsonArray("fields") {
@@ -100,7 +101,7 @@ fun Routing.topGGRoutes(httpClient: HttpClient) {
                                                 buildJsonObject {
                                                     put("name", "Platform")
                                                     put("value", "top.gg")
-                                                    put("inline", true)
+                                                    put("inline", false)
                                                 },
                                             )
                                             if (data.id != null) {
@@ -108,7 +109,7 @@ fun Routing.topGGRoutes(httpClient: HttpClient) {
                                                     buildJsonObject {
                                                         put("name", "Vote ID")
                                                         put("value", "`${data.id}`")
-                                                        put("inline", true)
+                                                        put("inline", false)
                                                     },
                                                 )
                                             }
