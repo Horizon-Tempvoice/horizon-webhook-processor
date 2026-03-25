@@ -1,0 +1,27 @@
+name: Gradle Build and Test
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    if: github.actor != 'renovate' && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+
+      - name: Lint
+        run: ./gradlew ktlintCheck
+
+      - name: Test
+        run: ./gradlew test --continue
