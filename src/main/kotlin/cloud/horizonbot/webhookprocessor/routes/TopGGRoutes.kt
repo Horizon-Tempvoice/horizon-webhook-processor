@@ -3,11 +3,7 @@ package cloud.horizonbot.webhookprocessor.routes
 import cloud.horizonbot.webhookprocessor.config.Environment
 import cloud.horizonbot.webhookprocessor.dto.TopGGPayload
 import cloud.horizonbot.webhookprocessor.models.TopggVotesTable
-import cloud.horizonbot.webhookprocessor.models.TopggVotesTable.platform
-import cloud.horizonbot.webhookprocessor.models.TopggVotesTable.userId
 import cloud.horizonbot.webhookprocessor.models.VoteRemindersTable
-import cloud.horizonbot.webhookprocessor.models.VoteRemindersTable.notified
-import cloud.horizonbot.webhookprocessor.models.VoteRemindersTable.remindAt
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.*
 import io.ktor.client.request.*
@@ -19,7 +15,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
-import org.jetbrains.exposed.v1.core.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import org.jetbrains.exposed.v1.jdbc.upsert
