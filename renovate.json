@@ -1,0 +1,79 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "baseBranchPatterns": [
+    "main"
+  ],
+  "labels": [
+    "dependencies",
+    "renovate"
+  ],
+  "dependencyDashboard": true,
+  "enabledManagers": [
+    "gradle"
+  ],
+  "rebaseWhen": "conflicted",
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 0,
+  "packageRules": [
+    {
+      "description": "Catch-all for minor/patch updates. Specific rules below will override this.",
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "matchCurrentVersion": "!/^0\\./",
+      "groupName": "Miscellaneous Updates"
+    },
+    {
+      "description": "Auto-merge patch updates to keep the noise low.",
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "automerge": false,
+      "automergeType": "pr"
+    },
+    {
+      "groupName": "Logging",
+      "matchPackageNames": [
+        "/^org\\.slf4j/",
+        "/^ch\\.qos\\.logback/",
+        "/^io\\.github\\.oshai:kotlin-logging/"
+      ]
+    },
+    {
+      "groupName": "Ktor Stack",
+      "matchPackageNames": [
+        "/^io\\.ktor/"
+      ]
+    },
+    {
+      "groupName": "Kotlin & Serialization",
+      "matchPackageNames": [
+        "/^org\\.jetbrains\\.kotlin/",
+        "/^org\\.jetbrains\\.kotlinx:kotlinx-serialization/",
+        "/^org\\.jetbrains\\.kotlinx:kotlinx-coroutines/"
+      ]
+    },
+    {
+      "groupName": "Database (Postgres, Hikari & Exposed)",
+      "matchPackageNames": [
+        "/^org\\.postgresql/",
+        "/^com\\.zaxxer:HikariCP/",
+        "/^org\\.jetbrains\\.exposed/"
+      ]
+    },
+    {
+      "groupName": "Gradle Plugins & Build Tools",
+      "matchPackageNames": [
+        "/com\\.gradleup\\.shadow/",
+        "/org\\.jlleitschuh\\.gradle\\.ktlint/",
+        "/com\\.google\\.cloud\\.tools\\.jib/",
+        "/com\\.palantir\\.git-version/",
+        "/io\\.github\\.cdimascio:dotenv-kotlin/"
+      ]
+    }
+  ]
+}
