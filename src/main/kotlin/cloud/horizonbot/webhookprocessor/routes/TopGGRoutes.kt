@@ -3,14 +3,26 @@ package cloud.horizonbot.webhookprocessor.routes
 import cloud.horizonbot.webhookprocessor.config.Environment
 import cloud.horizonbot.webhookprocessor.dto.TopGGPayload
 import cloud.horizonbot.webhookprocessor.models.TopggVotesTable
+import cloud.horizonbot.webhookprocessor.models.TopggVotesTable.platform
+import cloud.horizonbot.webhookprocessor.models.TopggVotesTable.userId
+import cloud.horizonbot.webhookprocessor.models.VoteRemindersTable
+import cloud.horizonbot.webhookprocessor.models.VoteRemindersTable.notified
+import cloud.horizonbot.webhookprocessor.models.VoteRemindersTable.remindAt
 import io.github.oshai.kotlinlogging.KotlinLogging
+import io.ktor.client.*
+import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.json.Json
-import org.jetbrains.exposed.sql.upsert
-import org.jetbrains.exposed.sql.transactions.transaction
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import org.jetbrains.exposed.v1.core.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
+import org.jetbrains.exposed.v1.jdbc.upsert
 import java.time.Instant
 import java.time.OffsetDateTime
 import javax.crypto.Mac
@@ -19,7 +31,7 @@ import javax.crypto.spec.SecretKeySpec
 private val logger = KotlinLogging.logger {}
 private val json = Json { ignoreUnknownKeys = true }
 
-fun Routing.topGGRoutes() {
+fun Routing.topGGRoutes(httpClient: HttpClient) {
     post("/webhook/topgg") {
         val signatureHeader = call.request.header("x-topgg-signature")
         if (signatureHeader == null) {
@@ -59,12 +71,61 @@ fun Routing.topGGRoutes() {
             TopggVotesTable.upsert {
                 it[userId] = discordUserId
                 it[platform] = "topgg"
-it[TopggVotesTable.votedAt] = votedAt
+                it[TopggVotesTable.votedAt] = votedAt
                 it[TopggVotesTable.expiredAt] = expiredAt
+                it[TopggVotesTable.acknowledged] = false
+            }
+            VoteRemindersTable.upsert {
+                it[userId] = discordUserId
+                it[platform] = "topgg"
+                it[remindAt] = expiredAt
+                it[notified] = false
+            }
+            TopggVotesTable.update({ TopggVotesTable.userId eq discordUserId }) {
+                it[TopggVotesTable.acknowledged] = true
             }
         }
 
-        logger.info { "Recorded top.gg vote from user $discordUserId (weight=${data.weight}, expires=$expiredAt)" }
+        logger.info { "Recorded top.gg vote from user $discordUserId (expires=$expiredAt)" }
+
+        Environment.discordVoteWebhookUrl?.let { webhookUrl ->
+            runCatching {
+                httpClient.post(webhookUrl) {
+                    contentType(ContentType.Application.Json)
+                    setBody(
+                        buildJsonObject {
+                            putJsonArray("embeds") {
+                                add(
+                                    buildJsonObject {
+                                        put("description", "<@$discordUserId> ${data.user.name} `$discordUserId`")
+                                        put("color", 0x00A0FF)
+                                        putJsonArray("fields") {
+                                            add(
+                                                buildJsonObject {
+                                                    put("name", "Platform")
+                                                    put("value", "top.gg")
+                                                    put("inline", true)
+                                                },
+                                            )
+                                            if (data.id != null) {
+                                                add(
+                                                    buildJsonObject {
+                                                        put("name", "Vote ID")
+                                                        put("value", "`${data.id}`")
+                                                        put("inline", true)
+                                                    },
+                                                )
+                                            }
+                                        }
+                                    },
+                                )
+                            }
+                        }.toString(),
+                    )
+                }
+            }.onFailure { logger.warn(it) { "Failed to post vote notification to Discord" } }
+        }
+
         call.respond(HttpStatusCode.OK)
     }
 }

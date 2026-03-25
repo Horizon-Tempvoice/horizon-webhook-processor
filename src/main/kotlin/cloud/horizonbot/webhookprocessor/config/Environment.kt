@@ -17,4 +17,5 @@ object Environment {
     val dbUser: String = env("DB_USER")
     val dbPassword: String = env("DB_PASSWORD")
     val topGGSecret: String = env("TOPGG_WEBHOOK_SECRET")
+    val discordVoteWebhookUrl: String? = (System.getenv("DISCORD_VOTE_WEBHOOK_URL") ?: dotenv.get("DISCORD_VOTE_WEBHOOK_URL", "")).takeIf { it.isNotBlank() }
 }
