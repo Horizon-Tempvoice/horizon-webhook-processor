@@ -8,43 +8,79 @@ import io.ktor.http.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.sql.upsert
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.Instant
-import java.time.temporal.ChronoUnit
+import java.time.OffsetDateTime
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 private val logger = KotlinLogging.logger {}
+private val json = Json { ignoreUnknownKeys = true }
 
 fun Routing.topGGRoutes() {
     post("/webhook/topgg") {
-        val auth = call.request.header("Authorization")
-        if (auth != Environment.topGGSecret) {
-            logger.warn { "Unauthorized top.gg webhook request" }
+        val signatureHeader = call.request.header("x-topgg-signature")
+        if (signatureHeader == null) {
+            logger.warn { "Missing x-topgg-signature header" }
             call.respond(HttpStatusCode.Unauthorized)
             return@post
         }
 
-        val payload = call.receive<TopGGPayload>()
+        val rawBody = call.receiveText()
 
-        if (payload.type == "test") {
-            logger.info { "Received top.gg test webhook from user ${payload.user}" }
+        if (!verifySignature(Environment.topGGSecret, signatureHeader, rawBody)) {
+            logger.warn { "Invalid top.gg webhook signature" }
+            call.respond(HttpStatusCode.Unauthorized)
+            return@post
+        }
+
+        val payload = json.decodeFromString<TopGGPayload>(rawBody)
+
+        if (payload.type == "webhook.test") {
+            logger.info { "Received top.gg test webhook" }
             call.respond(HttpStatusCode.OK)
             return@post
         }
 
-        val now = Instant.now()
-        val validityHours = if (payload.isWeekend) 24L else 12L
+        if (payload.type != "vote.create" || payload.data == null) {
+            call.respond(HttpStatusCode.OK)
+            return@post
+        }
+
+        val data = payload.data
+        val discordUserId = data.user.platformId.toLong()
+        val votedAt = data.createdAt?.let { OffsetDateTime.parse(it).toInstant() } ?: Instant.now()
+        val expiredAt = data.expiresAt?.let { OffsetDateTime.parse(it).toInstant() }
+            ?: votedAt.plusSeconds(12 * 3600)
 
         transaction {
             TopggVotesTable.upsert {
-                it[userId] = payload.user.toLong()
+                it[userId] = discordUserId
                 it[platform] = "topgg"
-                it[votedAt] = now
-                it[expiredAt] = now.plus(validityHours, ChronoUnit.HOURS)
+it[TopggVotesTable.votedAt] = votedAt
+                it[TopggVotesTable.expiredAt] = expiredAt
             }
         }
 
-        logger.info { "Recorded top.gg vote from user ${payload.user} (weekend=${payload.isWeekend}, valid=${validityHours}h)" }
-        call.respond(HttpStatusCode.NoContent)
+        logger.info { "Recorded top.gg vote from user $discordUserId (weight=${data.weight}, expires=$expiredAt)" }
+        call.respond(HttpStatusCode.OK)
     }
+}
+
+private fun verifySignature(secret: String, header: String, rawBody: String): Boolean {
+    val parts = header.split(",").associate {
+        val (k, v) = it.split("=", limit = 2)
+        k to v
+    }
+    val timestamp = parts["t"] ?: return false
+    val receivedSig = parts["v1"] ?: return false
+
+    val mac = Mac.getInstance("HmacSHA256")
+    mac.init(SecretKeySpec(secret.toByteArray(Charsets.UTF_8), "HmacSHA256"))
+    val computed = mac.doFinal("$timestamp.$rawBody".toByteArray(Charsets.UTF_8))
+    val computedHex = computed.joinToString("") { "%02x".format(it) }
+
+    return computedHex == receivedSig
 }
