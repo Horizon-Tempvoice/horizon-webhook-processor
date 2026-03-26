@@ -2,7 +2,7 @@ package cloud.horizonbot.webhookprocessor.routes
 
 import cloud.horizonbot.webhookprocessor.config.Environment
 import cloud.horizonbot.webhookprocessor.dto.TopGGPayload
-import cloud.horizonbot.webhookprocessor.models.TopggVotesTable
+import cloud.horizonbot.webhookprocessor.models.VotesTable
 import cloud.horizonbot.webhookprocessor.models.VoteRemindersTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.*
@@ -64,12 +64,12 @@ fun Routing.topGGRoutes(httpClient: HttpClient) {
             ?: votedAt.plusSeconds(12 * 3600)
 
         transaction {
-            TopggVotesTable.upsert {
+            VotesTable.upsert {
                 it[userId] = discordUserId
                 it[platform] = "topgg"
-                it[TopggVotesTable.votedAt] = votedAt
-                it[TopggVotesTable.expiredAt] = expiredAt
-                it[TopggVotesTable.acknowledged] = false
+                it[VotesTable.votedAt] = votedAt
+                it[VotesTable.expiredAt] = expiredAt
+                it[VotesTable.acknowledged] = false
             }
             VoteRemindersTable.upsert {
                 it[userId] = discordUserId
@@ -77,8 +77,8 @@ fun Routing.topGGRoutes(httpClient: HttpClient) {
                 it[remindAt] = expiredAt
                 it[notified] = false
             }
-            TopggVotesTable.update({ TopggVotesTable.userId eq discordUserId }) {
-                it[TopggVotesTable.acknowledged] = true
+            VotesTable.update({ VotesTable.userId eq discordUserId }) {
+                it[VotesTable.acknowledged] = true
             }
         }
 
