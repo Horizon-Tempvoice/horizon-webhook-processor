@@ -15,10 +15,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
-import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
-import org.jetbrains.exposed.v1.jdbc.upsert
 import java.time.Instant
 import java.time.OffsetDateTime
 import javax.crypto.Mac
@@ -64,21 +62,16 @@ fun Routing.topGGRoutes(httpClient: HttpClient) {
             ?: votedAt.plusSeconds(12 * 3600)
 
         transaction {
-            VotesTable.upsert {
+            VotesTable.insert {
                 it[userId] = discordUserId
                 it[platform] = "topgg"
                 it[VotesTable.votedAt] = votedAt
                 it[VotesTable.expiredAt] = expiredAt
-                it[VotesTable.acknowledged] = false
             }
-            VoteRemindersTable.upsert {
+            VoteRemindersTable.insert {
                 it[userId] = discordUserId
                 it[platform] = "topgg"
                 it[remindAt] = expiredAt
-                it[notified] = false
-            }
-            VotesTable.update({ VotesTable.userId eq discordUserId }) {
-                it[VotesTable.acknowledged] = true
             }
         }
 

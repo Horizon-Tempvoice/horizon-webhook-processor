@@ -8,7 +8,6 @@ object VoteRemindersTable : Table("vote_reminders") {
     val userId = long("user_id")
     val platform = varchar("platform", 50)
     val remindAt = timestamp("remind_at")
-    val notified = bool("notified").default(false)
 
     override val primaryKey = PrimaryKey(id)
 
