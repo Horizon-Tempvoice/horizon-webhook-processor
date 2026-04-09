@@ -12,6 +12,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
@@ -113,6 +114,19 @@ fun Routing.topGGRoutes(httpClient: HttpClient) {
                                         }
                                     },
                                 )
+                            }
+                            putJsonArray("components") {
+                                addJsonObject {
+                                    put("type", 1)
+                                    putJsonArray("components") {
+                                        addJsonObject {
+                                            put("type", 2)
+                                            put("style", 5)
+                                            put("label", "Vote here")
+                                            put("url", "https://top.gg/bot/${data.project.platformId}/vote")
+                                        }
+                                    }
+                                }
                             }
                         }.toString(),
                     )
