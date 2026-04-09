@@ -7,6 +7,7 @@ import cloud.horizonbot.webhookprocessor.models.VoteRemindersTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.*
 import io.ktor.client.request.*
+import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
@@ -46,45 +47,48 @@ fun Routing.topGGRoutes(httpClient: HttpClient) {
 
         val payload = json.decodeFromString<TopGGPayload>(rawBody)
 
-        if (payload.type == "webhook.test") {
-            logger.info { "Received top.gg test webhook" }
+        val isTest = payload.type == "webhook.test"
+
+        if (!isTest && (payload.type != "vote.create" || payload.data == null)) {
             call.respond(HttpStatusCode.OK)
             return@post
         }
 
-        if (payload.type != "vote.create" || payload.data == null) {
+        val data = payload.data ?: run {
             call.respond(HttpStatusCode.OK)
             return@post
         }
 
-        val data = payload.data
         val discordUserId = data.user.platformId.toLong()
         val votedAt = data.createdAt?.let { OffsetDateTime.parse(it).toInstant() } ?: Instant.now()
         val expiredAt = data.expiresAt?.let { OffsetDateTime.parse(it).toInstant() }
             ?: votedAt.plusSeconds(12 * 3600)
 
-        transaction {
-            VotesTable.insert {
-                it[userId] = discordUserId
-                it[platform] = "topgg"
-                it[VotesTable.votedAt] = votedAt
-                it[VotesTable.expiredAt] = expiredAt
+        if (!isTest) {
+            transaction {
+                VotesTable.insert {
+                    it[userId] = discordUserId
+                    it[platform] = "topgg"
+                    it[VotesTable.votedAt] = votedAt
+                    it[VotesTable.expiredAt] = expiredAt
+                }
+                VoteRemindersTable.upsert(
+                    VoteRemindersTable.userId, VoteRemindersTable.platform,
+                    onUpdate = { it[VoteRemindersTable.remindAt] = expiredAt },
+                ) {
+                    it[userId] = discordUserId
+                    it[platform] = "topgg"
+                    it[remindAt] = expiredAt
+                }
             }
-            VoteRemindersTable.upsert(
-                VoteRemindersTable.userId, VoteRemindersTable.platform,
-                onUpdate = { it[VoteRemindersTable.remindAt] = expiredAt },
-            ) {
-                it[userId] = discordUserId
-                it[platform] = "topgg"
-                it[remindAt] = expiredAt
-            }
+            logger.info { "Recorded top.gg vote from user $discordUserId (expires=$expiredAt)" }
+        } else {
+            logger.info { "Received top.gg test webhook for user $discordUserId (skipping DB insert)" }
         }
 
-        logger.info { "Recorded top.gg vote from user $discordUserId (expires=$expiredAt)" }
-
         Environment.discordVoteWebhookUrl?.let { webhookUrl ->
-            runCatching {
-                httpClient.post(webhookUrl) {
+            try {
+                val response = httpClient.post(webhookUrl) {
                     contentType(ContentType.Application.Json)
                     setBody(
                         buildJsonObject {
@@ -131,7 +135,13 @@ fun Routing.topGGRoutes(httpClient: HttpClient) {
                         }.toString(),
                     )
                 }
-            }.onFailure { logger.warn(it) { "Failed to post vote notification to Discord" } }
+                if (!response.status.isSuccess()) {
+                    val body = response.bodyAsText()
+                    logger.warn { "Discord webhook returned ${response.status}: $body" }
+                }
+            } catch (e: Exception) {
+                logger.warn(e) { "Failed to post vote notification to Discord" }
+            }
         }
 
         call.respond(HttpStatusCode.OK)
