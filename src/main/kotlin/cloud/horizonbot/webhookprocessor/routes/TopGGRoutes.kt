@@ -88,7 +88,7 @@ fun Routing.topGGRoutes(httpClient: HttpClient) {
 
         Environment.discordVoteWebhookUrl?.let { webhookUrl ->
             try {
-                val response = httpClient.post(webhookUrl) {
+                val response = httpClient.post("$webhookUrl?with_components=true") {
                     contentType(ContentType.Application.Json)
                     setBody(
                         buildJsonObject {
