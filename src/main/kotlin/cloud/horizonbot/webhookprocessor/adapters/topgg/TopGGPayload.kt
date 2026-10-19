@@ -1,4 +1,4 @@
-package cloud.horizonbot.webhookprocessor.dto
+package cloud.horizonbot.webhookprocessor.adapters.topgg
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
